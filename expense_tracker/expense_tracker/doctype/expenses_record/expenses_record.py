@@ -7,4 +7,4 @@ from frappe.model.document import Document
 
 class ExpensesRecord(Document):
     def before_save(self):
-        self.formatted_amount = self.amount if self.type == "credit" else -self.amount
+        self.formatted_amount = self.amount if self.type == "credit" else (0 - self.amount)
