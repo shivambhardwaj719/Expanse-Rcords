@@ -1,13 +1,30 @@
-// import React from 'react'
-
-import { Button,Modal, ModalBody, ModalCloseButton,chakra, ModalContent, ModalFooter, ModalHeader, ModalOverlay, Stack, FormControl, FormLabel, Input, FormErrorMessage, Textarea, Select } from "@chakra-ui/react"
-import { useForm } from "react-hook-form"
+import {
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    chakra,
+    ModalHeader,
+    ModalCloseButton,
+    ModalBody,
+    ModalFooter,
+    Button,
+    Stack,
+    FormControl,
+    FormLabel,
+    Input,
+    FormErrorMessage,
+    Select,
+    Textarea,
+    Progress
+} from '@chakra-ui/react'
+import { useFrappeCreateDoc, useFrappeFileUpload } from 'frappe-react-sdk'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 
 type Props = {
-    isOpen : boolean,
-    onClose : () => void
+    isOpen: boolean
+    onClose: () => void
 }
-
 interface FormFields {
     description: string
     amount: number
@@ -15,24 +32,54 @@ interface FormFields {
     remarks: string
 }
 
-export default function AddExpenseRecord({ isOpen, onClose } : Props) {
+export const AddExpenseRecord = ({ isOpen, onClose }: Props) => {
 
-    const {register, handleSubmit, formState:{errors}} = useForm<FormFields>()
+    const [file, setFile] = useState<File | null>(null)
+    const { register, handleSubmit, formState: { errors } } = useForm<FormFields>()
+    const { createDoc, loading, error } = useFrappeCreateDoc()
+    const { upload, progress, loading: fileUploading } = useFrappeFileUpload()
 
-    const onSubmit  = (data : FormFields) =>{
-        console.log(data)
+    const onSubmit = async (data: FormFields) => {
+        let fileUrl: string | undefined
+
+        if (file) {
+            try {
+                const uploadResponse = await upload(file, { is_private: 1 })
+                fileUrl = uploadResponse.file_url
+            } catch (uploadError) {
+                // Handle file upload error
+                console.error('File upload failed:', uploadError)
+                return
+            }
+        }
+
+        createDocument(data, fileUrl)
     }
 
-  return (
+    const createDocument = (data: FormFields, fileUrl?: string) => {
+        createDoc('Expenses Record', {
+            ...data,
+            file: fileUrl
+        })
+            .then(() => {
+                onClose()
+            })
+            .catch((createError) => {
+                // Handle document creation error
+                console.error('Document creation failed:', createError)
+            })
+    }
+
+    return (
         <Modal isOpen={isOpen} onClose={onClose}>
-            <chakra.form onSubmit = {handleSubmit(onSubmit)}>
-            <ModalOverlay />
+            <chakra.form onSubmit={handleSubmit(onSubmit)}>
+                <ModalOverlay />
                 <ModalContent>
-                <ModalHeader>Add Expanses</ModalHeader>
-                <ModalCloseButton />
-                <ModalBody>
-                    <Stack>
-                    <FormControl isRequired isInvalid={!!errors.description}>
+                    <ModalHeader>Add Expense</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <Stack>
+                            <FormControl isRequired isInvalid={!!errors.description}>
                                 <FormLabel>Description</FormLabel>
                                 <Input type='text' {...register('description', {
                                     required: "Description is required",
@@ -40,7 +87,6 @@ export default function AddExpenseRecord({ isOpen, onClose } : Props) {
                                         value: 3,
                                         message: "Description should be at least 3 characters"
                                     }
-                                    
                                 })} />
                                 <FormErrorMessage>{errors.description?.message}</FormErrorMessage>
                             </FormControl>
@@ -71,17 +117,25 @@ export default function AddExpenseRecord({ isOpen, onClose } : Props) {
                                 <Textarea {...register('remarks')} />
                                 <FormErrorMessage>{errors.remarks?.message}</FormErrorMessage>
                             </FormControl>
-                    </Stack>
-                </ModalBody>
-
-                <ModalFooter>
-                    <Button colorScheme='blue' mr={3} onClick={onClose}>
-                        Close
-                    </Button>
-                    <Button variant='ghost'>Save</Button>
-                </ModalFooter>
-            </ModalContent>
+                            <FormControl>
+                                <FormLabel>Attachment</FormLabel>
+                                <Input type='file' onChange={(e) => {
+                                    if (e.target.files) {
+                                        setFile(e.target.files[0])
+                                    }
+                                }} />
+                            </FormControl>
+                            {fileUploading && <Progress value={progress} />}
+                        </Stack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button mr={3} onClick={onClose}>
+                            Close
+                        </Button>
+                        <Button isLoading={loading} type='submit' colorScheme='blue'>Save</Button>
+                    </ModalFooter>
+                </ModalContent>
             </chakra.form>
         </Modal>
-  )
+    )
 }
